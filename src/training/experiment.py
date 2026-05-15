@@ -12,6 +12,7 @@ from torch.nn.utils import parameters_to_vector
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+from artifacts import save_reconstruction_grid
 from data import build_dataset
 from models import VariationalGONGenerator
 from training.gon import gon_training_step
@@ -190,6 +191,16 @@ def run_gon_experiment(
     model_path = None
     if bool(training_config.get("save_model", True)):
         model_path = logger.save_model(model)
+    reconstruction_grid_path = logger.run_dir / "reconstruction_grid.png"
+    save_reconstruction_grid(
+        model=model,
+        dataset=dataset,
+        output_path=reconstruction_grid_path,
+        latent_dim=latent_dim,
+        beta_inf=beta_inf,
+        batch_size=batch_size,
+        device=device,
+    )
     _save_checkpoint(
         checkpoint_path=checkpoint_path,
         model=model,

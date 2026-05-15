@@ -118,6 +118,14 @@ It saves a CSV table and one heatmap per metric.
 python scripts/run_test_grid.py --config configs/test_grid.yaml
 ```
 
+Each completed training run also saves `reconstruction_grid.png` in its run
+directory. To regenerate one grid or backfill every completed model in a config:
+
+```bash
+python scripts/save_reconstruction_grid.py --config configs/test_grid.yaml --beta-inf 1 --beta-opt 1
+python scripts/save_reconstruction_grid.py --config configs/test_grid.yaml --all
+```
+
 ## Layout
 
 - `configs/`: YAML experiment configs.

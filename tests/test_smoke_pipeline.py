@@ -34,6 +34,7 @@ def test_two_epoch_synthetic_pipeline_saves_artifacts_and_updates_parameters(tmp
     assert result.model_path is not None
     assert result.model_path.exists()
     assert (result.run_dir / "checkpoint.pt").exists()
+    assert (result.run_dir / "reconstruction_grid.png").exists()
     assert result.completed
     assert not result.resumed
 
