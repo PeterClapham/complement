@@ -49,7 +49,7 @@ python scripts/run_grid.py --config configs/mnist_speed.yaml
 
 ## Run The Grid
 
-The default config is the 300-epoch MNIST grid: three seeds, MNIST, and the 7x7
+The default config is the 15-epoch MNIST grid: three seeds, MNIST, and the 7x7
 `beta_inf`/`beta_opt` phase diagram. Each coordinate has a deterministic run
 directory and a `checkpoint.pt`. If training is interrupted, rerun the same
 command and completed or partially completed coordinates will resume from their
@@ -88,6 +88,21 @@ sbatch slurm/run_gon_grid.sbatch
 The provided script requests one GPU per task and uses `#SBATCH --array=0-48`
 for the 49 beta configurations in `configs/slurm.yaml`. If you change seeds,
 datasets, or beta values, update the array bounds to match the printed count.
+
+## Select The Epoch Budget
+
+`scripts/run_epoch_probe.py` runs an exploratory train/validation probe with the
+same variational inference procedure used at evaluation time. It logs validation
+`ELBO_opt`, reconstruction, KL, and the train/validation gap to
+`epoch_metrics.csv`.
+
+```bash
+python scripts/run_epoch_probe.py --config configs/epoch_probe.yaml --beta-inf 1 --beta-opt 1
+```
+
+Representative MNIST probes selected 15 epochs as the shared grid budget:
+`beta=(1, 1)` peaked at epoch 6, `beta=(10, 10)` at epoch 11, and
+`beta=(0.01, 0.01)` at epoch 15.
 
 ## Layout
 

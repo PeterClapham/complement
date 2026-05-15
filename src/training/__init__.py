@@ -9,11 +9,13 @@ from training.grid import (
     run_coordinate,
     run_experiment_grid,
 )
-from training.gon import gon_training_step
+from training.gon import gon_training_step, gon_validation_step
 from training.loss import ELBOLossTerms, elbo_inf_loss, elbo_opt_loss, negative_beta_elbo, vae_loss
+from training.probe import EpochProbeResult, run_epoch_probe
 
 __all__ = [
     "ELBOLossTerms",
+    "EpochProbeResult",
     "ExperimentCoordinate",
     "GridRunResult",
     "TrainingRunResult",
@@ -22,8 +24,10 @@ __all__ = [
     "coordinate_for_index",
     "experiment_coordinates",
     "gon_training_step",
+    "gon_validation_step",
     "negative_beta_elbo",
     "run_coordinate",
+    "run_epoch_probe",
     "run_experiment_grid",
     "run_gon_experiment",
     "vae_loss",

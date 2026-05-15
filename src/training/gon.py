@@ -60,5 +60,50 @@ def gon_training_step(
     }
 
 
+def gon_validation_step(
+    model: nn.Module,
+    batch: torch.Tensor,
+    latent_dim: int,
+    beta_inf: float,
+    beta_opt: float,
+) -> dict[str, float]:
+    """Evaluate one GON validation batch after latent inference.
+
+    ELBO_inf is differentiated with respect to the latent origin to produce the
+    inferred representation. ELBO_opt is then evaluated at that representation
+    without updating network parameters.
+    """
+    was_training = model.training
+    model.eval()
+    with torch.enable_grad():
+        latent_origin = torch.zeros(
+            batch.size(0),
+            latent_dim,
+            device=batch.device,
+            dtype=batch.dtype,
+            requires_grad=True,
+        )
+        reconstruction, mu, logvar = model(latent_origin)
+        inner_terms = elbo_inf_loss(reconstruction, batch, mu, logvar, beta_inf=beta_inf)
+        latent_grad = torch.autograd.grad(inner_terms.loss, [latent_origin])[0]
+        inferred_latent = -latent_grad
+        reconstruction, mu, logvar = model(inferred_latent)
+        outer_terms = elbo_opt_loss(reconstruction, batch, mu, logvar, beta_opt=beta_opt)
+
+    if was_training:
+        model.train()
+
+    return {
+        "elbo_inf_loss": _item(inner_terms.loss),
+        "elbo_inf_reconstruction": _item(inner_terms.reconstruction),
+        "elbo_inf_kl": _item(inner_terms.kl_divergence),
+        "elbo_opt_loss": _item(outer_terms.loss),
+        "elbo_opt_reconstruction": _item(outer_terms.reconstruction),
+        "elbo_opt_kl": _item(outer_terms.kl_divergence),
+        "beta_inf": float(beta_inf),
+        "beta_opt": float(beta_opt),
+    }
+
+
 def _item(value: Any) -> float:
     return float(value.detach().cpu().item())

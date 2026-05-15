@@ -1,5 +1,5 @@
 experiment:
-  name: variational_gon
+  name: epoch_probe
   results_dir: results
 seeds:
   - 0
@@ -10,18 +10,21 @@ datasets:
     download: true
     image_size: 32
     binarize: false
-    validation_fraction: 0.0
+    validation_fraction: 0.1
 model:
   name: variational_gon
   latent_dim: 48
   base_channels: 32
   output_channels: 1
 training:
-  epochs: 15
+  epochs: 80
   batch_size: 64
   learning_rate: 0.0001
   device: cuda
-  save_model: true
+  save_model: false
   progress: true
+probe:
+  patience: 10
+  min_delta: 0.25
 betas:
-  values: [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0]
+  values: [1.0]
