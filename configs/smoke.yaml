@@ -1,0 +1,23 @@
+experiment:
+  name: smoke_variational_gon
+  results_dir: results
+seeds:
+  - 0
+datasets:
+  - name: synthetic_binary
+    num_samples: 16
+    image_size: 32
+    channels: 1
+model:
+  name: variational_gon
+  latent_dim: 8
+  base_channels: 4
+  output_channels: 1
+training:
+  epochs: 2
+  batch_size: 4
+  learning_rate: 0.001
+  device: cuda
+  save_model: true
+betas:
+  values: [0.01, 10.0]

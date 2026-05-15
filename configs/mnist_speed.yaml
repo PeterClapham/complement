@@ -1,0 +1,27 @@
+experiment:
+  name: mnist_speed
+  results_dir: results
+seeds:
+  - 0
+datasets:
+  - name: mnist
+    data_dir: data/mnist
+    split: train
+    download: true
+    image_size: 32
+    binarize: false
+    validation_fraction: 0.0
+    max_samples: 128
+model:
+  name: variational_gon
+  latent_dim: 48
+  base_channels: 32
+  output_channels: 1
+training:
+  epochs: 5
+  batch_size: 64
+  learning_rate: 0.0001
+  device: cuda
+  save_model: true
+betas:
+  values: [1.0]
