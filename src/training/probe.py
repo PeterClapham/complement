@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,8 @@ class EpochProbeResult:
     epochs_completed: int
     stopped_early: bool
     best_validation_elbo: float
+    best_validation_reconstruction: float
+    monitored_metric: str
 
 
 def run_epoch_probe(
@@ -68,12 +71,16 @@ def run_epoch_probe(
     latent_dim = int(model_config.get("latent_dim", 48))
 
     best_epoch = 0
+    monitored_metric = str(probe_config.get("monitor_metric", "elbo_opt_loss"))
+    best_monitored_value = float("inf")
     best_validation_elbo = float("inf")
+    best_validation_reconstruction = float("inf")
     stale_epochs = 0
     stopped_early = False
     epoch_rows: list[dict[str, float | int]] = []
 
     for epoch in range(max_epochs):
+        epoch_start = time.perf_counter()
         train_loader = _loader(train_dataset, batch_size, shuffle=True, seed=seed + epoch)
         validation_loader = _loader(validation_dataset, batch_size, shuffle=False, seed=seed)
         train_metrics = _run_training_epoch(
@@ -100,15 +107,18 @@ def run_epoch_probe(
             **{f"train_{key}": value for key, value in train_metrics.items()},
             **{f"val_{key}": value for key, value in validation_metrics.items()},
             "generalization_gap": validation_metrics["elbo_opt_loss"] - train_metrics["elbo_opt_loss"],
+            "epoch_seconds": time.perf_counter() - epoch_start,
         }
         epoch_rows.append(row)
         _write_epoch_metrics(summary_path, epoch_rows)
         logger.log_metric(step=epoch, metrics=row)
         print(_probe_summary(row), flush=True)
 
-        current_validation_elbo = validation_metrics["elbo_opt_loss"]
-        if current_validation_elbo < best_validation_elbo - min_delta:
-            best_validation_elbo = current_validation_elbo
+        current_monitored_value = validation_metrics[monitored_metric]
+        if current_monitored_value < best_monitored_value - min_delta:
+            best_monitored_value = current_monitored_value
+            best_validation_elbo = validation_metrics["elbo_opt_loss"]
+            best_validation_reconstruction = validation_metrics["elbo_opt_reconstruction"]
             best_epoch = epoch + 1
             stale_epochs = 0
         else:
@@ -124,6 +134,8 @@ def run_epoch_probe(
         epochs_completed=len(epoch_rows),
         stopped_early=stopped_early,
         best_validation_elbo=best_validation_elbo,
+        best_validation_reconstruction=best_validation_reconstruction,
+        monitored_metric=monitored_metric,
     )
 
 
@@ -186,7 +198,8 @@ def _probe_summary(row: dict[str, float | int]) -> str:
         f"val_elbo_opt={row['val_elbo_opt_loss']:.4f} "
         f"val_recon={row['val_elbo_opt_reconstruction']:.4f} "
         f"val_kl={row['val_elbo_opt_kl']:.4f} "
-        f"gap={row['generalization_gap']:.4f}"
+        f"gap={row['generalization_gap']:.4f} "
+        f"seconds={row['epoch_seconds']:.2f}"
     )
 
 

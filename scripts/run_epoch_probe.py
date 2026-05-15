@@ -31,7 +31,9 @@ def main() -> None:
     print(
         f"Probe complete: best_epoch={result.best_epoch} "
         f"epochs_completed={result.epochs_completed} "
+        f"monitor={result.monitored_metric} "
         f"best_val_elbo={result.best_validation_elbo:.4f} "
+        f"best_val_recon={result.best_validation_reconstruction:.4f} "
         f"stopped_early={result.stopped_early} "
         f"run_dir={result.run_dir}",
         flush=True,

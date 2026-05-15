@@ -45,7 +45,37 @@ def test_epoch_probe_writes_epoch_metrics(tmp_path):
 
     assert result.epochs_completed == 2
     assert result.best_epoch >= 1
+    assert result.monitored_metric == "elbo_opt_loss"
     with (result.run_dir / "epoch_metrics.csv").open(encoding="utf-8") as file:
         rows = list(csv.DictReader(file))
     assert len(rows) == 2
     assert "val_elbo_opt_loss" in rows[0]
+    assert "epoch_seconds" in rows[0]
+
+
+def test_epoch_probe_can_monitor_reconstruction(tmp_path):
+    config = {
+        "experiment": {"name": "probe", "results_dir": str(tmp_path)},
+        "datasets": [
+            {
+                "name": "synthetic_binary",
+                "num_samples": 8,
+                "image_size": 32,
+                "channels": 1,
+            }
+        ],
+        "model": {"latent_dim": 8, "base_channels": 4, "output_channels": 1},
+        "training": {
+            "epochs": 2,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "device": "cpu",
+            "progress": False,
+        },
+        "probe": {"patience": 5, "min_delta": 0.0, "monitor_metric": "elbo_opt_reconstruction"},
+    }
+
+    result = run_epoch_probe(config, seed=0, dataset_name="synthetic_binary", beta_inf=0.1, beta_opt=1.0)
+
+    assert result.monitored_metric == "elbo_opt_reconstruction"
+    assert result.best_validation_reconstruction > 0.0

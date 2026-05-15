@@ -104,6 +104,13 @@ Representative MNIST probes selected 15 epochs as the shared grid budget:
 `beta=(1, 1)` peaked at epoch 6, `beta=(10, 10)` at epoch 11, and
 `beta=(0.01, 0.01)` at epoch 15.
 
+For a reconstruction-focused study that benchmarks batch sizes first and then
+runs long probes at the low corner, center, and high corner of the beta grid:
+
+```bash
+python scripts/run_reconstruction_study.py --config configs/reconstruction_probe.yaml
+```
+
 ## Run The Test Grid
 
 `scripts/run_test_grid.py` loads the completed model grid and evaluates:
