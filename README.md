@@ -171,6 +171,10 @@ On the local RTX 3070 workstation, the fastest measured conservative setting
 for `batch_size: 128` was `num_workers: 2` with pinned memory, persistent
 workers, cached MNIST tensors, and progress bars disabled.
 
+Training uses a deterministic epoch-aware sampler with one persistent
+`DataLoader` per run, so worker processes stay alive across epochs while
+preserving the same seeded shuffle order.
+
 ## Layout
 
 - `configs/`: YAML experiment configs.

@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 from torch.nn.utils import parameters_to_vector
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler
 from tqdm.auto import tqdm
 
 from artifacts import save_reconstruction_grid
@@ -126,6 +126,15 @@ def run_gon_experiment(
         print(f"Starting {run_dir}", flush=True)
 
     initial_parameters = parameters_to_vector(model.parameters()).detach().clone()
+    sampler = EpochRandomSampler(dataset, seed=seed)
+    loader = _loader(
+        dataset,
+        sampler=sampler,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+    )
 
     current_epoch = start_epoch
     current_next_batch = start_batch
@@ -133,15 +142,7 @@ def run_gon_experiment(
         for epoch in range(start_epoch, epochs):
             current_epoch = epoch
             current_next_batch = start_batch
-            loader = _loader_for_epoch(
-                dataset,
-                batch_size=batch_size,
-                seed=seed,
-                epoch=epoch,
-                num_workers=num_workers,
-                pin_memory=pin_memory,
-                persistent_workers=persistent_workers,
-            )
+            sampler.set_epoch(epoch)
             epoch_metrics: list[dict[str, float]] = []
             batches = enumerate(loader)
             if show_progress:
@@ -269,22 +270,42 @@ def _dataset_config(config: dict[str, Any], dataset_name: str) -> dict[str, Any]
     raise ValueError(f"Dataset not found in config: {dataset_name}")
 
 
-def _loader_for_epoch(
+class EpochRandomSampler(Sampler[int]):
+    """Deterministic per-epoch random sampler for a persistent DataLoader."""
+
+    def __init__(self, dataset: torch.utils.data.Dataset, seed: int) -> None:
+        self.dataset = dataset
+        self.seed = seed
+        self.epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        """Select the epoch whose deterministic permutation should be yielded."""
+        self.epoch = epoch
+
+    def __iter__(self):
+        generator = torch.Generator().manual_seed(self.seed + self.epoch)
+        # Match DataLoader's seeded-shuffle sequence: iterator creation consumes
+        # one random int for the worker base seed before RandomSampler draws.
+        torch.empty((), dtype=torch.int64).random_(generator=generator)
+        return iter(torch.randperm(len(self.dataset), generator=generator).tolist())
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+
+def _loader(
     dataset: torch.utils.data.Dataset,
+    sampler: Sampler[int],
     batch_size: int,
-    seed: int,
-    epoch: int,
     num_workers: int = 0,
     pin_memory: bool = False,
     persistent_workers: bool = False,
 ) -> DataLoader:
-    generator = torch.Generator().manual_seed(seed + epoch)
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=True,
+        sampler=sampler,
         drop_last=True,
-        generator=generator,
         num_workers=num_workers,
         pin_memory=pin_memory,
         persistent_workers=persistent_workers if num_workers > 0 else False,
