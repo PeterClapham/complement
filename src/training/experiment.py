@@ -150,16 +150,6 @@ def run_gon_experiment(
                 epoch_metrics.append(metrics)
                 num_steps += 1
                 current_next_batch = batch_index + 1
-                _save_checkpoint(
-                    checkpoint_path=checkpoint_path,
-                    model=model,
-                    optimizer=optimizer,
-                    epoch=epoch,
-                    next_batch=batch_index + 1,
-                    num_steps=num_steps,
-                    completed=False,
-                    run_config=run_config,
-                )
             _save_checkpoint(
                 checkpoint_path=checkpoint_path,
                 model=model,
