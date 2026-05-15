@@ -66,11 +66,35 @@ Google Drive, clones or updates this repo, writes Drive-backed Colab configs,
 runs a smoke test, and can launch the full resumable grid when
 `RUN_FULL_GRID = True`.
 
+## Run On Slurm
+
+`configs/slurm.yaml` defines a one-seed 7x7 MNIST grid. The Slurm array script
+maps each array task to one beta coordinate, so all 49 models can be scheduled
+independently while keeping the same checkpoint/resume behavior.
+
+Check the number of configured tasks:
+
+```bash
+python scripts/run_slurm_task.py --config configs/slurm.yaml --print-count
+```
+
+Submit the array after adapting `slurm/run_gon_grid.sbatch` to your cluster's
+modules and environment setup:
+
+```bash
+sbatch slurm/run_gon_grid.sbatch
+```
+
+The provided script requests one GPU per task and uses `#SBATCH --array=0-48`
+for the 49 beta configurations in `configs/slurm.yaml`. If you change seeds,
+datasets, or beta values, update the array bounds to match the printed count.
+
 ## Layout
 
 - `configs/`: YAML experiment configs.
 - `notebooks/`: Colab and analysis notebooks.
 - `scripts/`: training and experiment entry points.
+- `slurm/`: Slurm batch submission templates.
 - `src/data/`: dataset loading and preprocessing.
 - `src/metrics/`: metric implementations.
 - `src/models/`: model definitions.
