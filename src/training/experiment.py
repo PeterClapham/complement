@@ -9,6 +9,7 @@ from typing import Any
 import torch
 from torch.nn.utils import parameters_to_vector
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from data import build_dataset
 from models import VariationalGONGenerator
@@ -83,6 +84,7 @@ def run_gon_experiment(
     start_batch = 0
     num_steps = 0
     resumed = False
+    show_progress = bool(training_config.get("progress", True))
 
     if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -93,6 +95,7 @@ def run_gon_experiment(
         num_steps = int(checkpoint["num_steps"])
         resumed = True
         if bool(checkpoint.get("completed", False)):
+            print(f"Already complete: {run_dir}", flush=True)
             model_path = logger.run_dir / "model.pt"
             return TrainingRunResult(
                 run_dir=logger.run_dir,
@@ -102,6 +105,13 @@ def run_gon_experiment(
                 completed=True,
                 resumed=True,
             )
+        print(
+            f"Resuming {run_dir} from epoch {start_epoch + 1}/{epochs}, "
+            f"batch {start_batch + 1}",
+            flush=True,
+        )
+    else:
+        print(f"Starting {run_dir}", flush=True)
 
     initial_parameters = parameters_to_vector(model.parameters()).detach().clone()
 
@@ -112,7 +122,17 @@ def run_gon_experiment(
             current_epoch = epoch
             current_next_batch = start_batch
             loader = _loader_for_epoch(dataset, batch_size=batch_size, seed=seed, epoch=epoch)
-            for batch_index, batch in enumerate(loader):
+            epoch_metrics: list[dict[str, float]] = []
+            batches = enumerate(loader)
+            if show_progress:
+                batches = tqdm(
+                    batches,
+                    total=len(loader),
+                    initial=start_batch if epoch == start_epoch else 0,
+                    desc=f"Epoch {epoch + 1}/{epochs}",
+                    leave=False,
+                )
+            for batch_index, batch in batches:
                 if epoch == start_epoch and batch_index < start_batch:
                     continue
                 if isinstance(batch, list | tuple):
@@ -127,6 +147,7 @@ def run_gon_experiment(
                     beta_opt=beta_opt,
                 )
                 logger.log_metric(step=num_steps, metrics={"epoch": epoch, **metrics})
+                epoch_metrics.append(metrics)
                 num_steps += 1
                 current_next_batch = batch_index + 1
                 _save_checkpoint(
@@ -149,6 +170,8 @@ def run_gon_experiment(
                 completed=False,
                 run_config=run_config,
             )
+            if epoch_metrics:
+                print(_epoch_summary(epoch, epochs, epoch_metrics), flush=True)
             start_batch = 0
             current_next_batch = 0
     except KeyboardInterrupt:
@@ -284,3 +307,17 @@ def _safe_name(value: str) -> str:
 
 def _format_float(value: float) -> str:
     return str(value).replace(".", "p")
+
+
+def _epoch_summary(epoch: int, epochs: int, metrics: list[dict[str, float]]) -> str:
+    mean_inf = sum(item["elbo_inf_loss"] for item in metrics) / len(metrics)
+    mean_opt = sum(item["elbo_opt_loss"] for item in metrics) / len(metrics)
+    mean_recon = sum(item["elbo_opt_reconstruction"] for item in metrics) / len(metrics)
+    mean_kl = sum(item["elbo_opt_kl"] for item in metrics) / len(metrics)
+    return (
+        f"Epoch {epoch + 1}/{epochs}: "
+        f"elbo_inf={mean_inf:.4f} "
+        f"elbo_opt={mean_opt:.4f} "
+        f"recon={mean_recon:.4f} "
+        f"kl={mean_kl:.4f}"
+    )

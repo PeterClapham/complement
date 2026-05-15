@@ -23,9 +23,22 @@ class GridRunResult:
 def run_experiment_grid(config: dict[str, Any]) -> GridRunResult:
     """Train every dataset/seed/beta configuration declared in the config."""
     runs: list[TrainingRunResult] = []
-    for dataset_name in _dataset_names(config):
-        for seed in _seeds(config):
-            for beta_config in iter_beta_grid(_beta_values(config)):
+    dataset_names = _dataset_names(config)
+    seeds = _seeds(config)
+    beta_grid = iter_beta_grid(_beta_values(config))
+    total_runs = len(dataset_names) * len(seeds) * len(beta_grid)
+    run_index = 0
+    print(f"Grid contains {total_runs} runs.", flush=True)
+    for dataset_name in dataset_names:
+        for seed in seeds:
+            for beta_config in beta_grid:
+                run_index += 1
+                print(
+                    f"[{run_index}/{total_runs}] "
+                    f"dataset={dataset_name} seed={seed} "
+                    f"beta_inf={beta_config['beta_inf']} beta_opt={beta_config['beta_opt']}",
+                    flush=True,
+                )
                 result = run_gon_experiment(
                     config=config,
                     seed=seed,
@@ -34,6 +47,11 @@ def run_experiment_grid(config: dict[str, Any]) -> GridRunResult:
                     beta_opt=beta_config["beta_opt"],
                 )
                 runs.append(result)
+                print(
+                    f"Finished [{run_index}/{total_runs}] "
+                    f"steps={result.num_steps} resumed={result.resumed}",
+                    flush=True,
+                )
     return GridRunResult(runs=runs)
 
 

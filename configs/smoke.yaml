@@ -19,5 +19,6 @@ training:
   learning_rate: 0.001
   device: cuda
   save_model: true
+  progress: true
 betas:
   values: [0.01, 10.0]
