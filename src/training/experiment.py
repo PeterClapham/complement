@@ -106,7 +106,7 @@ def run_gon_experiment(
         start_batch = int(checkpoint["next_batch"])
         num_steps = int(checkpoint["num_steps"])
         resumed = True
-        if bool(checkpoint.get("completed", False)):
+        if bool(checkpoint.get("completed", False)) and start_epoch >= epochs:
             print(f"Already complete: {run_dir}", flush=True)
             model_path = logger.run_dir / "model.pt"
             return TrainingRunResult(
@@ -117,11 +117,18 @@ def run_gon_experiment(
                 completed=True,
                 resumed=True,
             )
-        print(
-            f"Resuming {run_dir} from epoch {start_epoch + 1}/{epochs}, "
-            f"batch {start_batch + 1}",
-            flush=True,
-        )
+        if bool(checkpoint.get("completed", False)):
+            print(
+                f"Extending {run_dir} from epoch {start_epoch + 1}/{epochs}, "
+                f"batch {start_batch + 1}",
+                flush=True,
+            )
+        else:
+            print(
+                f"Resuming {run_dir} from epoch {start_epoch + 1}/{epochs}, "
+                f"batch {start_batch + 1}",
+                flush=True,
+            )
     else:
         print(f"Starting {run_dir}", flush=True)
 

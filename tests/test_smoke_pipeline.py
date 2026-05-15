@@ -97,6 +97,32 @@ def test_completed_run_is_resumed_without_retraining(tmp_path):
     assert second.num_steps == first.num_steps
 
 
+def test_completed_run_can_be_extended_to_more_epochs(tmp_path):
+    config = _smoke_config(tmp_path)
+
+    first = run_gon_experiment(
+        config=config,
+        seed=3,
+        dataset_name="synthetic_binary",
+        beta_inf=0.01,
+        beta_opt=10.0,
+    )
+    config["training"]["epochs"] = 3
+    second = run_gon_experiment(
+        config=config,
+        seed=3,
+        dataset_name="synthetic_binary",
+        beta_inf=0.01,
+        beta_opt=10.0,
+    )
+
+    assert first.run_dir == second.run_dir
+    assert second.resumed
+    assert second.completed
+    assert second.num_steps == 6
+    assert second.num_steps > first.num_steps
+
+
 def test_corrupted_checkpoint_has_clear_error(tmp_path):
     config = _smoke_config(tmp_path)
     result = run_gon_experiment(
