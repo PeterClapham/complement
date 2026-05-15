@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from torch.utils.data import Dataset, Subset, random_split
+from torch.utils.data import Dataset, Subset, TensorDataset, random_split
 from torchvision import datasets, transforms
 
 
@@ -21,6 +21,7 @@ def build_mnist_dataset(config: dict, seed: int) -> Dataset:
     binarize = bool(config.get("binarize", False))
     validation_fraction = float(config.get("validation_fraction", 0.0))
     max_samples = config.get("max_samples")
+    cache_tensors = bool(config.get("cache_tensors", False))
 
     transform_steps = [transforms.Resize(image_size), transforms.ToTensor()]
     if binarize:
@@ -33,7 +34,12 @@ def build_mnist_dataset(config: dict, seed: int) -> Dataset:
             download=download,
             transform=transforms.Compose(transform_steps),
         )
-        return _limit_dataset(test_dataset, max_samples)
+        return _limit_dataset(
+            _maybe_cache_dataset(test_dataset, Path(data_dir), split="test", image_size=image_size, binarize=binarize)
+            if cache_tensors
+            else test_dataset,
+            max_samples,
+        )
 
     full_train = datasets.MNIST(
         root=Path(data_dir),
@@ -41,6 +47,14 @@ def build_mnist_dataset(config: dict, seed: int) -> Dataset:
         download=download,
         transform=transforms.Compose(transform_steps),
     )
+    if cache_tensors:
+        full_train = _maybe_cache_dataset(
+            full_train,
+            Path(data_dir),
+            split="train",
+            image_size=image_size,
+            binarize=binarize,
+        )
     if split == "train" and validation_fraction <= 0.0:
         return _limit_dataset(full_train, max_samples)
     if not 0.0 < validation_fraction < 1.0:
@@ -72,3 +86,28 @@ def _limit_dataset(dataset: Dataset, max_samples: object) -> Dataset:
     if limit >= len(dataset):
         return dataset
     return Subset(dataset, range(limit))
+
+
+def _maybe_cache_dataset(
+    dataset: Dataset,
+    data_dir: Path,
+    split: str,
+    image_size: int,
+    binarize: bool,
+) -> Dataset:
+    cache_dir = data_dir / "tensor_cache"
+    cache_path = cache_dir / f"mnist_{split}_{image_size}px_binarize-{str(binarize).lower()}.pt"
+    if cache_path.exists():
+        images = torch.load(cache_path, weights_only=True)
+        return TensorDataset(images)
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    images = torch.stack([_image(dataset[index]) for index in range(len(dataset))])
+    temporary_path = cache_path.with_suffix(f"{cache_path.suffix}.tmp")
+    torch.save(images, temporary_path)
+    temporary_path.replace(cache_path)
+    return TensorDataset(images)
+
+
+def _image(item: object) -> torch.Tensor:
+    return item[0] if isinstance(item, list | tuple) else item

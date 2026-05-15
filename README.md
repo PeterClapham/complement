@@ -152,6 +152,19 @@ training:
   persistent_workers: true
 ```
 
+MNIST can also cache the already-transformed tensors under its configured
+`data_dir`:
+
+```yaml
+datasets:
+  - name: mnist
+    cache_tensors: true
+```
+
+On the local RTX 3070 workstation, the fastest measured conservative setting
+for `batch_size: 128` was `num_workers: 2` with pinned memory, persistent
+workers, cached MNIST tensors, and progress bars disabled.
+
 ## Layout
 
 - `configs/`: YAML experiment configs.

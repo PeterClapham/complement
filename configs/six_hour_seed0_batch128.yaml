@@ -10,6 +10,7 @@ datasets:
     download: true
     image_size: 32
     binarize: false
+    cache_tensors: true
     validation_fraction: 0.0
 model:
   name: variational_gon
@@ -17,9 +18,9 @@ model:
   base_channels: 32
   output_channels: 1
 training:
-  epochs: 39
+  epochs: 47
   batch_size: 128
-  num_workers: 4
+  num_workers: 2
   pin_memory: true
   persistent_workers: true
   learning_rate: 0.0001
