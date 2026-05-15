@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from data import build_dataset
-from metrics import representation_entropy, representation_perplexity
+from metrics import posterior_collapse_summary, representation_entropy, representation_perplexity
 from models import VariationalGONGenerator
 from training import experiment_coordinates
 from training.loss import negative_beta_elbo
@@ -89,10 +89,11 @@ def _evaluate_coordinate(
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False)
     metric_sums = {
         "elbo": 0.0,
-        "reconstruction": 0.0,
+        "reconstruction_error": 0.0,
         "kl": 0.0,
     }
     representation_means = []
+    representation_logvars = []
     num_examples = 0
     batches = tqdm(loader, desc=f"Eval b_inf={coordinate.beta_inf} b_opt={coordinate.beta_opt}", leave=False)
     for batch in batches:
@@ -101,15 +102,31 @@ def _evaluate_coordinate(
         elbo_terms = negative_beta_elbo(reconstruction, images, mu, logvar, beta=1.0)
         batch_size_actual = images.size(0)
         metric_sums["elbo"] += -float(elbo_terms.loss.detach().cpu()) * batch_size_actual
-        metric_sums["reconstruction"] += float(elbo_terms.reconstruction.detach().cpu()) * batch_size_actual
+        metric_sums["reconstruction_error"] += float(elbo_terms.reconstruction.detach().cpu()) * batch_size_actual
         metric_sums["kl"] += float(elbo_terms.kl_divergence.detach().cpu()) * batch_size_actual
         representation_means.append(mu.detach().cpu())
+        representation_logvars.append(logvar.detach().cpu())
         num_examples += batch_size_actual
 
     means = {key: value / num_examples for key, value in metric_sums.items()}
     all_means = torch.cat(representation_means, dim=0)
-    means["representation_entropy"] = float(representation_entropy(all_means))
-    means["representation_perplexity"] = float(representation_perplexity(all_means))
+    all_logvars = torch.cat(representation_logvars, dim=0)
+    entropy_bins = int(evaluation_config.get("representation_entropy_bins", 30))
+    collapse_config = _mapping(evaluation_config.get("posterior_collapse", {}))
+    collapse = posterior_collapse_summary(
+        all_means,
+        all_logvars,
+        active_sigma_threshold=float(collapse_config.get("active_sigma_threshold", 0.5)),
+        passive_sigma_mean_tolerance=float(collapse_config.get("passive_sigma_mean_tolerance", 0.1)),
+        passive_sigma_var_threshold=float(collapse_config.get("passive_sigma_var_threshold", 0.01)),
+        passive_mu_mean_tolerance=float(collapse_config.get("passive_mu_mean_tolerance", 0.1)),
+        passive_mu_var_threshold=float(collapse_config.get("passive_mu_var_threshold", 0.01)),
+    )
+    means["representation_entropy"] = float(representation_entropy(all_means, bins=entropy_bins))
+    means["representation_perplexity"] = float(representation_perplexity(all_means, bins=entropy_bins))
+    means["posterior_active_fraction"] = float(collapse.active_fraction)
+    means["posterior_passive_fraction"] = float(collapse.passive_fraction)
+    means["posterior_mixed_fraction"] = float(collapse.mixed_fraction)
     return {
         "dataset": coordinate.dataset_name,
         "seed": coordinate.seed,
@@ -146,7 +163,15 @@ def _save_heatmaps(
     output_dir: Path,
 ) -> list[Path]:
     beta_values = _beta_values(config)
-    metric_names = ["elbo", "representation_perplexity", "representation_entropy"]
+    metric_names = [
+        "elbo",
+        "reconstruction_error",
+        "representation_perplexity",
+        "representation_entropy",
+        "posterior_active_fraction",
+        "posterior_passive_fraction",
+        "posterior_mixed_fraction",
+    ]
     heatmap_paths = []
     for metric_name in metric_names:
         values = np.full((len(beta_values), len(beta_values)), np.nan)

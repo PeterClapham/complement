@@ -3,20 +3,43 @@ from pathlib import Path
 import torch
 
 from evaluation import evaluate_checkpoint_sweep, evaluate_model_grid
-from metrics import representation_entropy, representation_perplexity
+from metrics import posterior_collapse_summary, representation_entropy, representation_perplexity
 from models import VariationalGONGenerator
 
 
-def test_representation_metrics_fit_diagonal_gaussian_to_mean_codes():
-    mu = torch.tensor([[0.0, 0.0], [2.0, 4.0]])
+def test_representation_metrics_average_histogram_entropy_over_coordinates():
+    mu = torch.tensor([[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]])
 
-    entropy = representation_entropy(mu)
-    perplexity = representation_perplexity(mu)
+    entropy = representation_entropy(mu, bins=2)
+    perplexity = representation_perplexity(mu, bins=2)
 
-    variances = torch.tensor([1.0, 4.0])
-    expected_entropy = 0.5 * torch.sum(torch.log(2.0 * torch.pi * torch.e * variances))
+    expected_entropy = torch.log(torch.tensor(2.0))
     assert torch.isclose(entropy, expected_entropy)
     assert torch.isclose(perplexity, torch.exp(expected_entropy))
+
+
+def test_posterior_collapse_summary_classifies_active_passive_and_mixed_dimensions():
+    mu = torch.tensor(
+        [
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+        ]
+    )
+    sigma = torch.tensor(
+        [
+            [0.1, 1.0, 0.1],
+            [0.1, 1.0, 0.1],
+            [0.1, 1.0, 1.0],
+            [0.1, 1.0, 1.0],
+        ]
+    )
+    summary = posterior_collapse_summary(mu, 2.0 * torch.log(sigma))
+
+    assert torch.isclose(summary.active_fraction, torch.tensor(1 / 3))
+    assert torch.isclose(summary.passive_fraction, torch.tensor(1 / 3))
+    assert torch.isclose(summary.mixed_fraction, torch.tensor(1 / 3))
 
 
 def test_evaluate_model_grid_writes_metrics_and_heatmaps(tmp_path):
@@ -37,7 +60,7 @@ def test_evaluate_model_grid_writes_metrics_and_heatmaps(tmp_path):
 
     assert result.metrics_path.exists()
     assert len(result.rows) == 4
-    assert len(result.heatmap_paths) == 3
+    assert len(result.heatmap_paths) == 7
     assert all(path.exists() for path in result.heatmap_paths)
 
 
