@@ -1,0 +1,64 @@
+from pathlib import Path
+
+import torch
+
+from evaluation import evaluate_model_grid
+from metrics import representation_entropy, representation_perplexity
+from models import VariationalGONGenerator
+
+
+def test_representation_metrics_match_diagonal_gaussian_formula():
+    mu = torch.zeros(2, 3)
+    logvar = torch.zeros(2, 3)
+
+    entropy = representation_entropy(mu, logvar)
+    perplexity = representation_perplexity(mu, logvar)
+
+    expected_entropy = 0.5 * 3 * torch.log(torch.tensor(2.0 * torch.pi * torch.e))
+    assert torch.isclose(entropy, expected_entropy)
+    assert torch.isclose(perplexity, torch.exp(expected_entropy))
+
+
+def test_evaluate_model_grid_writes_metrics_and_heatmaps(tmp_path):
+    config = _evaluation_config(tmp_path)
+    for beta_inf in [0.01, 1.0]:
+        for beta_opt in [0.01, 1.0]:
+            model_dir = (
+                Path(tmp_path)
+                / "smoke_eval"
+                / "synthetic_binary"
+                / "seed-0"
+                / f"beta-inf-{_fmt(beta_inf)}__beta-opt-{_fmt(beta_opt)}"
+            )
+            model_dir.mkdir(parents=True)
+            torch.save(VariationalGONGenerator(latent_dim=8, base_channels=4).state_dict(), model_dir / "model.pt")
+
+    result = evaluate_model_grid(config)
+
+    assert result.metrics_path.exists()
+    assert len(result.rows) == 4
+    assert len(result.heatmap_paths) == 3
+    assert all(path.exists() for path in result.heatmap_paths)
+
+
+def _evaluation_config(tmp_path):
+    return {
+        "experiment": {"name": "smoke_eval", "results_dir": str(tmp_path)},
+        "seeds": [0],
+        "datasets": [
+            {
+                "name": "synthetic_binary",
+                "num_samples": 8,
+                "image_size": 32,
+                "channels": 1,
+            }
+        ],
+        "model": {"latent_dim": 8, "base_channels": 4, "output_channels": 1},
+        "training": {"batch_size": 4, "device": "cpu"},
+        "evaluation": {"batch_size": 4, "device": "cpu", "output_dir": str(Path(tmp_path) / "evaluation")},
+        "betas": {"values": [0.01, 1.0]},
+    }
+
+
+def _fmt(value: float) -> str:
+    return str(value).replace(".", "p")

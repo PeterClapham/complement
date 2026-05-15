@@ -104,6 +104,20 @@ Representative MNIST probes selected 15 epochs as the shared grid budget:
 `beta=(1, 1)` peaked at epoch 6, `beta=(10, 10)` at epoch 11, and
 `beta=(0.01, 0.01)` at epoch 15.
 
+## Run The Test Grid
+
+`scripts/run_test_grid.py` loads the completed model grid and evaluates:
+
+- standard ELBO with beta fixed to `1`
+- latent representation perplexity
+- latent representation entropy
+
+It saves a CSV table and one heatmap per metric.
+
+```bash
+python scripts/run_test_grid.py --config configs/test_grid.yaml
+```
+
 ## Layout
 
 - `configs/`: YAML experiment configs.
