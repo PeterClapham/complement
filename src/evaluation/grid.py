@@ -32,11 +32,11 @@ class EvaluationGridResult:
     rows: list[dict[str, float | int | str]]
 
 
-def evaluate_model_grid(config: dict[str, Any]) -> EvaluationGridResult:
+def evaluate_model_grid(config: dict[str, Any], model_filename: str = "model.pt") -> EvaluationGridResult:
     """Evaluate every completed model in a configured grid and save heatmaps."""
     rows: list[dict[str, float | int | str]] = []
     for coordinate in experiment_coordinates(config):
-        rows.append(_evaluate_coordinate(config, coordinate))
+        rows.append(_evaluate_coordinate(config, coordinate, model_filename))
 
     output_dir = _evaluation_dir(config)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -46,7 +46,32 @@ def evaluate_model_grid(config: dict[str, Any]) -> EvaluationGridResult:
     return EvaluationGridResult(metrics_path=metrics_path, heatmap_paths=heatmap_paths, rows=rows)
 
 
-def _evaluate_coordinate(config: dict[str, Any], coordinate: Any) -> dict[str, float | int | str]:
+def evaluate_checkpoint_sweep(config: dict[str, Any]) -> list[EvaluationGridResult]:
+    """Evaluate every configured saved-epoch model grid."""
+    evaluation_config = _mapping(config.get("evaluation", {}))
+    checkpoint_epochs = [int(value) for value in evaluation_config.get("checkpoint_epochs", [])]
+    if not checkpoint_epochs:
+        raise ValueError("evaluation.checkpoint_epochs must be a non-empty list")
+
+    base_output_dir = _evaluation_dir(config)
+    results = []
+    for epoch in checkpoint_epochs:
+        epoch_config = {
+            **config,
+            "evaluation": {
+                **evaluation_config,
+                "output_dir": str(base_output_dir / f"epoch-{epoch:04d}"),
+            },
+        }
+        results.append(evaluate_model_grid(epoch_config, model_filename=f"model_epoch-{epoch:04d}.pt"))
+    return results
+
+
+def _evaluate_coordinate(
+    config: dict[str, Any],
+    coordinate: Any,
+    model_filename: str,
+) -> dict[str, float | int | str]:
     dataset_config = _dataset_config(config, coordinate.dataset_name)
     evaluation_config = _mapping(config.get("evaluation", {}))
     model_config = _mapping(config.get("model", {}))
@@ -56,7 +81,7 @@ def _evaluate_coordinate(config: dict[str, Any], coordinate: Any) -> dict[str, f
     batch_size = int(evaluation_config.get("batch_size", training_config.get("batch_size", 64)))
     device = torch.device(str(evaluation_config.get("device", training_config.get("device", "cpu"))))
     model = _build_model(model_config).to(device)
-    model_path = _model_path(config, coordinate)
+    model_path = _model_path(config, coordinate, model_filename)
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
 
@@ -169,7 +194,7 @@ def _evaluation_dir(config: dict[str, Any]) -> Path:
     return Path(str(experiment_config.get("results_dir", "results"))) / "evaluation"
 
 
-def _model_path(config: dict[str, Any], coordinate: Any) -> Path:
+def _model_path(config: dict[str, Any], coordinate: Any, model_filename: str) -> Path:
     experiment_config = _mapping(config.get("experiment", {}))
     results_dir = Path(str(experiment_config.get("results_dir", "results")))
     experiment_name = str(experiment_config.get("name", "variational_gon"))
@@ -179,7 +204,7 @@ def _model_path(config: dict[str, Any], coordinate: Any) -> Path:
         / coordinate.dataset_name
         / f"seed-{coordinate.seed}"
         / f"beta-inf-{_format_float(coordinate.beta_inf)}__beta-opt-{_format_float(coordinate.beta_opt)}"
-        / "model.pt"
+        / model_filename
     )
 
 

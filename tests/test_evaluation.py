@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 
-from evaluation import evaluate_model_grid
+from evaluation import evaluate_checkpoint_sweep, evaluate_model_grid
 from metrics import representation_entropy, representation_perplexity
 from models import VariationalGONGenerator
 
@@ -39,6 +39,30 @@ def test_evaluate_model_grid_writes_metrics_and_heatmaps(tmp_path):
     assert len(result.rows) == 4
     assert len(result.heatmap_paths) == 3
     assert all(path.exists() for path in result.heatmap_paths)
+
+
+def test_evaluate_checkpoint_sweep_writes_one_directory_per_epoch(tmp_path):
+    config = _evaluation_config(tmp_path)
+    config["evaluation"]["checkpoint_epochs"] = [50, 80]
+    for beta_inf in [0.01, 1.0]:
+        for beta_opt in [0.01, 1.0]:
+            model_dir = (
+                Path(tmp_path)
+                / "smoke_eval"
+                / "synthetic_binary"
+                / "seed-0"
+                / f"beta-inf-{_fmt(beta_inf)}__beta-opt-{_fmt(beta_opt)}"
+            )
+            model_dir.mkdir(parents=True, exist_ok=True)
+            state = VariationalGONGenerator(latent_dim=8, base_channels=4).state_dict()
+            torch.save(state, model_dir / "model_epoch-0050.pt")
+            torch.save(state, model_dir / "model_epoch-0080.pt")
+
+    results = evaluate_checkpoint_sweep(config)
+
+    assert len(results) == 2
+    assert results[0].metrics_path.parent.name == "epoch-0050"
+    assert results[1].metrics_path.parent.name == "epoch-0080"
 
 
 def _evaluation_config(tmp_path):

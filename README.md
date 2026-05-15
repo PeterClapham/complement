@@ -125,6 +125,12 @@ It saves a CSV table and one heatmap per metric.
 python scripts/run_test_grid.py --config configs/test_grid.yaml
 ```
 
+To evaluate saved epoch checkpoints from a completed grid:
+
+```bash
+python scripts/run_checkpoint_evaluations.py --config configs/test_checkpoints_80.yaml
+```
+
 Each completed training run also saves `reconstruction_grid.png` in its run
 directory. To regenerate one grid or backfill every completed model in a config:
 
