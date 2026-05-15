@@ -59,9 +59,17 @@ saved state.
 python scripts/run_grid.py --config configs/default.yaml
 ```
 
+## Run On Colab
+
+Open `notebooks/colab_training.ipynb` in Google Colab. The notebook mounts
+Google Drive, clones or updates this repo, writes Drive-backed Colab configs,
+runs a smoke test, and can launch the full resumable grid when
+`RUN_FULL_GRID = True`.
+
 ## Layout
 
 - `configs/`: YAML experiment configs.
+- `notebooks/`: Colab and analysis notebooks.
 - `scripts/`: training and experiment entry points.
 - `src/data/`: dataset loading and preprocessing.
 - `src/metrics/`: metric implementations.
