@@ -91,9 +91,8 @@ def _evaluate_coordinate(
         "elbo": 0.0,
         "reconstruction": 0.0,
         "kl": 0.0,
-        "representation_entropy": 0.0,
-        "representation_perplexity": 0.0,
     }
+    representation_means = []
     num_examples = 0
     batches = tqdm(loader, desc=f"Eval b_inf={coordinate.beta_inf} b_opt={coordinate.beta_opt}", leave=False)
     for batch in batches:
@@ -104,15 +103,13 @@ def _evaluate_coordinate(
         metric_sums["elbo"] += -float(elbo_terms.loss.detach().cpu()) * batch_size_actual
         metric_sums["reconstruction"] += float(elbo_terms.reconstruction.detach().cpu()) * batch_size_actual
         metric_sums["kl"] += float(elbo_terms.kl_divergence.detach().cpu()) * batch_size_actual
-        metric_sums["representation_entropy"] += float(
-            representation_entropy(mu, logvar).detach().cpu()
-        ) * batch_size_actual
-        metric_sums["representation_perplexity"] += float(
-            representation_perplexity(mu, logvar).detach().cpu()
-        ) * batch_size_actual
+        representation_means.append(mu.detach().cpu())
         num_examples += batch_size_actual
 
     means = {key: value / num_examples for key, value in metric_sums.items()}
+    all_means = torch.cat(representation_means, dim=0)
+    means["representation_entropy"] = float(representation_entropy(all_means))
+    means["representation_perplexity"] = float(representation_perplexity(all_means))
     return {
         "dataset": coordinate.dataset_name,
         "seed": coordinate.seed,

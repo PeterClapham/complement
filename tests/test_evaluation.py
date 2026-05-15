@@ -7,14 +7,14 @@ from metrics import representation_entropy, representation_perplexity
 from models import VariationalGONGenerator
 
 
-def test_representation_metrics_match_diagonal_gaussian_formula():
-    mu = torch.zeros(2, 3)
-    logvar = torch.zeros(2, 3)
+def test_representation_metrics_fit_diagonal_gaussian_to_mean_codes():
+    mu = torch.tensor([[0.0, 0.0], [2.0, 4.0]])
 
-    entropy = representation_entropy(mu, logvar)
-    perplexity = representation_perplexity(mu, logvar)
+    entropy = representation_entropy(mu)
+    perplexity = representation_perplexity(mu)
 
-    expected_entropy = 0.5 * 3 * torch.log(torch.tensor(2.0 * torch.pi * torch.e))
+    variances = torch.tensor([1.0, 4.0])
+    expected_entropy = 0.5 * torch.sum(torch.log(2.0 * torch.pi * torch.e * variances))
     assert torch.isclose(entropy, expected_entropy)
     assert torch.isclose(perplexity, torch.exp(expected_entropy))
 
