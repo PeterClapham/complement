@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -87,7 +88,13 @@ def run_gon_experiment(
     show_progress = bool(training_config.get("progress", True))
 
     if checkpoint_path.exists():
-        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        except (OSError, RuntimeError, EOFError, pickle.UnpicklingError) as error:
+            raise RuntimeError(
+                f"Checkpoint could not be loaded and may be corrupted: {checkpoint_path}. "
+                "Delete or move this checkpoint, then rerun to restart this configuration."
+            ) from error
         model.load_state_dict(checkpoint["model_state"])
         optimizer.load_state_dict(checkpoint["optimizer_state"])
         start_epoch = int(checkpoint["epoch"])
@@ -287,7 +294,9 @@ def _save_checkpoint(
         "completed": completed,
         "config": run_config,
     }
-    torch.save(checkpoint, checkpoint_path)
+    temporary_path = checkpoint_path.with_suffix(f"{checkpoint_path.suffix}.tmp")
+    torch.save(checkpoint, temporary_path)
+    temporary_path.replace(checkpoint_path)
 
 
 def _safe_name(value: str) -> str:

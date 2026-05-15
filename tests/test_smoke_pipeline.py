@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import torch
 import yaml
 
@@ -75,6 +76,27 @@ def test_completed_run_is_resumed_without_retraining(tmp_path):
     assert second.resumed
     assert second.completed
     assert second.num_steps == first.num_steps
+
+
+def test_corrupted_checkpoint_has_clear_error(tmp_path):
+    config = _smoke_config(tmp_path)
+    result = run_gon_experiment(
+        config=config,
+        seed=3,
+        dataset_name="synthetic_binary",
+        beta_inf=0.01,
+        beta_opt=10.0,
+    )
+    (result.run_dir / "checkpoint.pt").write_bytes(b"not a checkpoint")
+
+    with pytest.raises(RuntimeError, match="may be corrupted"):
+        run_gon_experiment(
+            config=config,
+            seed=3,
+            dataset_name="synthetic_binary",
+            beta_inf=0.01,
+            beta_opt=10.0,
+        )
 
 
 def test_pipeline_runs_different_beta_configuration(tmp_path):
