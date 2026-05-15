@@ -48,6 +48,9 @@ def run_gon_experiment(
 
     dataset = build_dataset(dataset_name, dataset_config, seed=seed)
     batch_size = int(training_config.get("batch_size", 32))
+    num_workers = int(training_config.get("num_workers", 0))
+    pin_memory = bool(training_config.get("pin_memory", False))
+    persistent_workers = bool(training_config.get("persistent_workers", False))
     device = torch.device(str(training_config.get("device", "cpu")))
     model = _build_model(model_config).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config.get("learning_rate", 1e-3)))
@@ -82,6 +85,7 @@ def run_gon_experiment(
     checkpoint_path = logger.run_dir / "checkpoint.pt"
     latent_dim = int(model_config.get("latent_dim", 48))
     epochs = int(training_config.get("epochs", 1))
+    artifact_epochs = _artifact_epochs(training_config, epochs)
     start_epoch = 0
     start_batch = 0
     num_steps = 0
@@ -129,7 +133,15 @@ def run_gon_experiment(
         for epoch in range(start_epoch, epochs):
             current_epoch = epoch
             current_next_batch = start_batch
-            loader = _loader_for_epoch(dataset, batch_size=batch_size, seed=seed, epoch=epoch)
+            loader = _loader_for_epoch(
+                dataset,
+                batch_size=batch_size,
+                seed=seed,
+                epoch=epoch,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                persistent_workers=persistent_workers,
+            )
             epoch_metrics: list[dict[str, float]] = []
             batches = enumerate(loader)
             if show_progress:
@@ -145,7 +157,7 @@ def run_gon_experiment(
                     continue
                 if isinstance(batch, list | tuple):
                     batch = batch[0]
-                batch = batch.to(device)
+                batch = batch.to(device, non_blocking=pin_memory)
                 metrics = gon_training_step(
                     model=model,
                     optimizer=optimizer,
@@ -170,6 +182,18 @@ def run_gon_experiment(
             )
             if epoch_metrics:
                 print(_epoch_summary(epoch, epochs, epoch_metrics), flush=True)
+            completed_epoch = epoch + 1
+            if completed_epoch in artifact_epochs:
+                _save_epoch_artifacts(
+                    logger=logger,
+                    model=model,
+                    dataset=dataset,
+                    latent_dim=latent_dim,
+                    beta_inf=beta_inf,
+                    batch_size=batch_size,
+                    device=device,
+                    epoch=completed_epoch,
+                )
             start_batch = 0
             current_next_batch = 0
     except KeyboardInterrupt:
@@ -250,6 +274,9 @@ def _loader_for_epoch(
     batch_size: int,
     seed: int,
     epoch: int,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
 ) -> DataLoader:
     generator = torch.Generator().manual_seed(seed + epoch)
     return DataLoader(
@@ -258,6 +285,9 @@ def _loader_for_epoch(
         shuffle=True,
         drop_last=True,
         generator=generator,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers if num_workers > 0 else False,
     )
 
 
@@ -317,6 +347,41 @@ def _safe_name(value: str) -> str:
 
 def _format_float(value: float) -> str:
     return str(value).replace(".", "p")
+
+
+def _artifact_epochs(training_config: dict[str, Any], epochs: int) -> set[int]:
+    values = training_config.get("artifact_epochs", [])
+    if not isinstance(values, list):
+        raise ValueError("training.artifact_epochs must be a list")
+    artifact_epochs = {int(value) for value in values}
+    invalid = sorted(value for value in artifact_epochs if value <= 0 or value > epochs)
+    if invalid:
+        raise ValueError(f"training.artifact_epochs must be within [1, {epochs}], got {invalid}")
+    return artifact_epochs
+
+
+def _save_epoch_artifacts(
+    logger: ExperimentLogger,
+    model: torch.nn.Module,
+    dataset: torch.utils.data.Dataset,
+    latent_dim: int,
+    beta_inf: float,
+    batch_size: int,
+    device: torch.device,
+    epoch: int,
+) -> None:
+    model_path = logger.run_dir / f"model_epoch-{epoch:04d}.pt"
+    torch.save(model.state_dict(), model_path)
+    reconstruction_grid_path = logger.run_dir / f"reconstruction_grid_epoch-{epoch:04d}.png"
+    save_reconstruction_grid(
+        model=model,
+        dataset=dataset,
+        output_path=reconstruction_grid_path,
+        latent_dim=latent_dim,
+        beta_inf=beta_inf,
+        batch_size=batch_size,
+        device=device,
+    )
 
 
 def _epoch_summary(epoch: int, epochs: int, metrics: list[dict[str, float]]) -> str:

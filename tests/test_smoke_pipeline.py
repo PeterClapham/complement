@@ -55,6 +55,24 @@ def test_two_epoch_synthetic_pipeline_saves_artifacts_and_updates_parameters(tmp
     assert metrics[-1]["metrics"]["epoch"] == 1
 
 
+def test_requested_epoch_artifacts_are_saved(tmp_path):
+    config = _smoke_config(tmp_path)
+    config["training"]["artifact_epochs"] = [1, 2]
+
+    result = run_gon_experiment(
+        config=config,
+        seed=3,
+        dataset_name="synthetic_binary",
+        beta_inf=0.01,
+        beta_opt=10.0,
+    )
+
+    assert (result.run_dir / "model_epoch-0001.pt").exists()
+    assert (result.run_dir / "model_epoch-0002.pt").exists()
+    assert (result.run_dir / "reconstruction_grid_epoch-0001.png").exists()
+    assert (result.run_dir / "reconstruction_grid_epoch-0002.png").exists()
+
+
 def test_completed_run_is_resumed_without_retraining(tmp_path):
     config = _smoke_config(tmp_path)
 

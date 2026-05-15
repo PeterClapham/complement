@@ -133,6 +133,25 @@ python scripts/save_reconstruction_grid.py --config configs/test_grid.yaml --bet
 python scripts/save_reconstruction_grid.py --config configs/test_grid.yaml --all
 ```
 
+To save milestone model states and reconstruction grids during training, set
+`training.artifact_epochs` in the config, for example:
+
+```yaml
+training:
+  epochs: 100
+  artifact_epochs: [50, 63, 75, 88, 100]
+```
+
+Pure data-loading throughput options can also be configured without changing
+the model objective or update rule:
+
+```yaml
+training:
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+```
+
 ## Layout
 
 - `configs/`: YAML experiment configs.
