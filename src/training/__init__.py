@@ -10,6 +10,15 @@ from training.grid import (
     run_experiment_grid,
 )
 from training.gon import gon_training_step, gon_validation_step
+from training.latent_dim_search import (
+    LatentDimensionSearchResult,
+    LatentDimensionSearchRoundsResult,
+    aggregate_latent_dimension_results,
+    propose_next_dimensions,
+    run_latent_dimension_search,
+    run_latent_dimension_search_rounds,
+    within_margin_of_error,
+)
 from training.loss import ELBOLossTerms, elbo_inf_loss, elbo_opt_loss, negative_beta_elbo, vae_loss
 from training.probe import EpochProbeResult, run_epoch_probe
 
@@ -18,6 +27,8 @@ __all__ = [
     "EpochProbeResult",
     "ExperimentCoordinate",
     "GridRunResult",
+    "LatentDimensionSearchResult",
+    "LatentDimensionSearchRoundsResult",
     "TrainingRunResult",
     "elbo_inf_loss",
     "elbo_opt_loss",
@@ -30,5 +41,10 @@ __all__ = [
     "run_epoch_probe",
     "run_experiment_grid",
     "run_gon_experiment",
+    "run_latent_dimension_search",
+    "run_latent_dimension_search_rounds",
+    "aggregate_latent_dimension_results",
+    "propose_next_dimensions",
+    "within_margin_of_error",
     "vae_loss",
 ]

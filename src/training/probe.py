@@ -14,6 +14,7 @@ from tqdm.auto import tqdm
 
 from data import build_dataset
 from models import VariationalGONGenerator
+from training.experiment import EpochRandomSampler
 from training.gon import gon_training_step, gon_validation_step
 from utils import ExperimentLogger, set_seed
 
@@ -51,6 +52,9 @@ def run_epoch_probe(
     train_dataset = build_dataset(dataset_name, train_dataset_config, seed=seed)
     validation_dataset = build_dataset(dataset_name, validation_dataset_config, seed=seed)
     batch_size = int(training_config.get("batch_size", 64))
+    num_workers = int(training_config.get("num_workers", 0))
+    pin_memory = bool(training_config.get("pin_memory", False))
+    persistent_workers = bool(training_config.get("persistent_workers", False))
     device = torch.device(str(training_config.get("device", "cpu")))
     model = _build_model(model_config).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config.get("learning_rate", 1e-3)))
@@ -78,11 +82,27 @@ def run_epoch_probe(
     stale_epochs = 0
     stopped_early = False
     epoch_rows: list[dict[str, float | int]] = []
+    train_sampler = EpochRandomSampler(train_dataset, seed=seed)
+    train_loader = _loader(
+        train_dataset,
+        batch_size,
+        sampler=train_sampler,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+    )
+    validation_loader = _loader(
+        validation_dataset,
+        batch_size,
+        sampler=None,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+    )
 
     for epoch in range(max_epochs):
         epoch_start = time.perf_counter()
-        train_loader = _loader(train_dataset, batch_size, shuffle=True, seed=seed + epoch)
-        validation_loader = _loader(validation_dataset, batch_size, shuffle=False, seed=seed)
+        train_sampler.set_epoch(epoch)
         train_metrics = _run_training_epoch(
             model=model,
             optimizer=optimizer,
@@ -174,9 +194,23 @@ def _run_validation_epoch(
     return _mean_metrics(metrics)
 
 
-def _loader(dataset: torch.utils.data.Dataset, batch_size: int, shuffle: bool, seed: int) -> DataLoader:
-    generator = torch.Generator().manual_seed(seed)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=True, generator=generator)
+def _loader(
+    dataset: torch.utils.data.Dataset,
+    batch_size: int,
+    sampler: torch.utils.data.Sampler[int] | None,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
+) -> DataLoader:
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=sampler,
+        drop_last=True,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers if num_workers > 0 else False,
+    )
 
 
 def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:
