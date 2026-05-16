@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--cache-tensors", action="store_true")
     parser.add_argument("--progress", action="store_true")
+    parser.add_argument("--dataset", type=str, default="mnist")
     return parser.parse_args()
 
 
@@ -33,6 +34,7 @@ def main() -> None:
                 base_config,
                 args.epochs,
                 workers,
+                dataset_name=args.dataset,
                 cache_tensors=args.cache_tensors,
                 progress=args.progress,
             )
@@ -45,6 +47,7 @@ def _run_case(
     base_config: dict[str, Any],
     epochs: int,
     workers: int,
+    dataset_name: str,
     cache_tensors: bool,
     progress: bool,
 ) -> dict[str, float | int | bool]:
@@ -61,7 +64,7 @@ def _run_case(
     config["training"]["progress"] = progress
     config["datasets"][0]["cache_tensors"] = cache_tensors
     start = time.perf_counter()
-    run_gon_experiment(config, seed=0, dataset_name="mnist", beta_inf=1.0, beta_opt=1.0)
+    run_gon_experiment(config, seed=0, dataset_name=dataset_name, beta_inf=1.0, beta_opt=1.0)
     elapsed = time.perf_counter() - start
     row = {
         "workers": workers,

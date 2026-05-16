@@ -1,0 +1,30 @@
+experiment:
+  name: smallnorb_speed
+  results_dir: results
+seeds:
+  - 0
+datasets:
+  - name: smallnorb
+    data_dir: data/smallnorb
+    split: train
+    download: true
+    image_size: 32
+    cache_tensors: true
+    validation_fraction: 0.0
+model:
+  name: variational_gon
+  latent_dim: 48
+  base_channels: 32
+  output_channels: 1
+training:
+  epochs: 3
+  batch_size: 128
+  num_workers: 2
+  pin_memory: true
+  persistent_workers: true
+  learning_rate: 0.0001
+  device: cuda
+  save_model: false
+  progress: false
+betas:
+  values: [1.0]
