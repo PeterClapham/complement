@@ -20,7 +20,7 @@ model:
   base_channels: 32
   output_channels: 1
 training:
-  epochs: 100
+  epochs: 50
   batch_size: 128
   num_workers: 2
   pin_memory: true
@@ -30,7 +30,7 @@ training:
   save_model: false
   progress: false
 probe:
-  patience: 101
+  patience: 51
   min_delta: 0.0
   monitor_metric: elbo_opt_reconstruction
 latent_dimension_search:
