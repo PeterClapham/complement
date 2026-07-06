@@ -59,6 +59,15 @@ def latent_search_run_dir(
     )
 
 
+def collapse_dynamics_dir(results_dir: Path, study_name: str) -> Path:
+    """Return the root directory for a collapse-dynamics study.
+
+    Groups the irreversibility, hysteresis, and replay experiments that probe how
+    posterior collapse forms, whether it reverses, and how it is protected.
+    """
+    return results_dir / "experiments" / "collapse_dynamics" / study_name
+
+
 def format_float(value: float) -> str:
     """Format float values for stable filesystem names."""
     return str(value).replace(".", "p")

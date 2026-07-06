@@ -1,5 +1,11 @@
 """Training loops and optimization helpers."""
 
+from training.continuation import (
+    ContinuationResult,
+    continue_training,
+    infer_batch_statistics,
+    latent_activity_row,
+)
 from training.experiment import TrainingRunResult, run_gon_experiment
 from training.grid import (
     ExperimentCoordinate,
@@ -21,21 +27,29 @@ from training.latent_dim_search import (
 )
 from training.loss import ELBOLossTerms, elbo_inf_loss, elbo_opt_loss, negative_beta_elbo, vae_loss
 from training.probe import EpochProbeResult, run_epoch_probe
+from training.replay import ReplayBuffer, gon_replay_training_step, run_replay_training
 
 __all__ = [
+    "ContinuationResult",
     "ELBOLossTerms",
     "EpochProbeResult",
     "ExperimentCoordinate",
     "GridRunResult",
     "LatentDimensionSearchResult",
     "LatentDimensionSearchRoundsResult",
+    "ReplayBuffer",
     "TrainingRunResult",
+    "continue_training",
     "elbo_inf_loss",
     "elbo_opt_loss",
     "coordinate_for_index",
     "experiment_coordinates",
+    "gon_replay_training_step",
     "gon_training_step",
     "gon_validation_step",
+    "infer_batch_statistics",
+    "latent_activity_row",
+    "run_replay_training",
     "negative_beta_elbo",
     "run_coordinate",
     "run_epoch_probe",
