@@ -35,6 +35,7 @@ def test_two_epoch_synthetic_pipeline_saves_artifacts_and_updates_parameters(tmp
     assert result.model_path.exists()
     assert (result.run_dir / "checkpoint.pt").exists()
     assert (result.run_dir / "reconstruction_grid.png").exists()
+    assert (result.run_dir / "sample_grid.png").exists()
     assert result.completed
     assert not result.resumed
 
@@ -71,6 +72,8 @@ def test_requested_epoch_artifacts_are_saved(tmp_path):
     assert (result.run_dir / "model_epoch-0002.pt").exists()
     assert (result.run_dir / "reconstruction_grid_epoch-0001.png").exists()
     assert (result.run_dir / "reconstruction_grid_epoch-0002.png").exists()
+    assert (result.run_dir / "sample_grid_epoch-0001.png").exists()
+    assert (result.run_dir / "sample_grid_epoch-0002.png").exists()
 
 
 def test_completed_run_is_resumed_without_retraining(tmp_path):

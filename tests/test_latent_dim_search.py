@@ -5,6 +5,7 @@ from training import (
     propose_next_dimensions,
     within_margin_of_error,
 )
+from training.latent_dim_search import LatentDimensionSearchResult
 
 
 def test_aggregate_latent_dimension_results_reports_mean_and_error():
@@ -64,3 +65,36 @@ def test_margin_of_error_detects_neighbor_overlap():
     ]
 
     assert within_margin_of_error(aggregated)
+
+
+def test_round_runner_uses_previous_round_proposal(monkeypatch, tmp_path):
+    from training import latent_dim_search
+
+    seen_dimensions = []
+
+    def fake_run(config):
+        dimensions = config["latent_dimension_search"]["dimensions"]
+        seen_dimensions.append(dimensions)
+        return LatentDimensionSearchResult(
+            summary_path=tmp_path / "summary.csv",
+            proposal_path=tmp_path / "proposal.csv",
+            rows=[{"latent_dim": dimensions[0], "final_validation_reconstruction": 1.0}],
+            proposed_dimensions=[value + 1 for value in dimensions],
+            predicted_optimum=float(dimensions[0]),
+        )
+
+    monkeypatch.setattr(latent_dim_search, "run_latent_dimension_search", fake_run)
+    monkeypatch.setattr(latent_dim_search, "_write_rows", lambda path, rows: None)
+    config = {
+        "experiment": {"name": "search", "results_dir": str(tmp_path)},
+        "latent_dimension_search": {
+            "dimensions": [10, 20],
+            "rounds": 3,
+            "low": 1,
+            "high": 100,
+        },
+    }
+
+    latent_dim_search.run_latent_dimension_search_rounds(config)
+
+    assert seen_dimensions == [[10, 20], [11, 21], [12, 22]]

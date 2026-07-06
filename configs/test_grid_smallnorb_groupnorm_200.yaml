@@ -1,19 +1,18 @@
 experiment:
-  name: variational_gon_seed0_batch128_80ep
+  name: smallnorb_groupnorm_seed0_batch128_200ep
   results_dir: results
 seeds:
   - 0
 datasets:
-  - name: mnist
-    data_dir: data/mnist
+  - name: smallnorb
+    data_dir: data/smallnorb
     split: train
     download: true
     image_size: 32
-    binarize: false
     cache_tensors: true
     validation_fraction: 0.0
 model:
-  name: variational_gon
+  name: variational_gon_groupnorm
   latent_dim: 48
   base_channels: 32
   output_channels: 1
@@ -23,7 +22,7 @@ training:
 evaluation:
   batch_size: 128
   device: cuda
-  output_dir: results/evaluations/beta_grids/variational_gon_seed0_batch128_80ep/final-150ep
+  output_dir: results/evaluations/beta_grids/smallnorb_groupnorm_seed0_batch128_200ep/final-200ep
   representation_entropy_bins: 30
   posterior_collapse:
     active_sigma_threshold: 0.5
@@ -32,4 +31,4 @@ evaluation:
     passive_mu_mean_tolerance: 0.1
     passive_mu_var_threshold: 0.01
 betas:
-  values: [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0]
+  values: [0.0, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0]

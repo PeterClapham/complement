@@ -1,4 +1,4 @@
-"""Reconstruction image artifacts for trained GON models."""
+"""Image artifacts for trained GON models."""
 
 from __future__ import annotations
 
@@ -51,6 +51,26 @@ def save_reconstruction_grid(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     save_image(reconstruction.detach().cpu(), output_path, nrow=nrow)
+    if was_training:
+        model.train()
+    return output_path
+
+
+def save_sample_grid(
+    model: torch.nn.Module,
+    output_path: Path,
+    batch_size: int,
+    device: torch.device | str,
+    nrow: int = 8,
+) -> Path:
+    """Save a grid of prior samples from the model decoder."""
+    was_training = model.training
+    model.eval()
+    with torch.no_grad():
+        samples = model.sample(batch_size=batch_size, device=device)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    save_image(samples.detach().cpu(), output_path, nrow=nrow)
     if was_training:
         model.train()
     return output_path

@@ -10,9 +10,9 @@ from statistics import mean, stdev
 from typing import Any
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator
 
 from training.probe import run_epoch_probe
+from utils import latent_search_dir, latent_search_run_dir
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,11 @@ def run_latent_dimension_search(config: dict[str, Any]) -> LatentDimensionSearch
     for latent_dim in dimensions:
         for seed in seeds:
             probe_config = _probe_config(config, latent_dim, round_index)
+            results_dir = Path(str(_mapping(config.get("experiment", {})).get("results_dir", "results")))
+            study_name = str(_mapping(config.get("experiment", {})).get("name", "latent_dimension_search"))
+            probe_config["probe_run_dir"] = str(
+                latent_search_run_dir(results_dir, study_name, round_index, latent_dim, seed)
+            )
             result = run_epoch_probe(
                 config=probe_config,
                 seed=seed,
@@ -101,9 +106,6 @@ def run_latent_dimension_search_rounds(config: dict[str, Any]) -> LatentDimensio
     dimensions = _dimensions(search_config)
     all_rows: list[dict[str, float | int]] = []
     results = []
-    low = int(search_config.get("low", min(dimensions)))
-    high = int(search_config.get("high", max(dimensions)))
-
     for round_index in range(num_rounds):
         round_config = deepcopy(config)
         round_config["latent_dimension_search"]["round"] = round_index
@@ -112,14 +114,7 @@ def run_latent_dimension_search_rounds(config: dict[str, Any]) -> LatentDimensio
         results.append(result)
         all_rows.extend(result.rows)
         if round_index < num_rounds - 1:
-            dimensions, _ = propose_next_dimensions(
-                aggregate_latent_dimension_results(all_rows),
-                current_dimensions=dimensions,
-                array_size=len(dimensions),
-                low=low,
-                high=high,
-                min_step=int(search_config.get("min_step", 1)),
-            )
+            dimensions = result.proposed_dimensions
 
     combined_summary_path = _output_dir(config, 0).parent / "all_latent_dimension_results.csv"
     _write_rows(combined_summary_path, all_rows)
@@ -167,6 +162,8 @@ def propose_next_dimensions(
     losses = np.asarray([float(row["mean_final_validation_reconstruction"]) for row in aggregated])
     if len(dimensions) < 2:
         raise ValueError("at least two latent dimensions are required to propose a next round")
+
+    from scipy.interpolate import PchipInterpolator
 
     interpolator = PchipInterpolator(dimensions, losses)
     dense_dimensions = np.linspace(dimensions.min(), dimensions.max(), num=4096)
@@ -238,7 +235,7 @@ def _output_dir(config: dict[str, Any], round_index: int) -> Path:
     experiment_config = _mapping(config.get("experiment", {}))
     results_dir = Path(str(experiment_config.get("results_dir", "results")))
     experiment_name = str(experiment_config.get("name", "latent_dimension_search"))
-    return results_dir / experiment_name / f"round-{round_index:02d}"
+    return latent_search_dir(results_dir, experiment_name) / f"round-{round_index:02d}"
 
 
 def _final_validation_reconstruction(run_dir: Path) -> float:

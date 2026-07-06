@@ -4,6 +4,7 @@ import torch
 
 from models import VariationalGONGenerator
 from training import gon_validation_step, run_epoch_probe
+from training.probe import _shutdown_loader_workers
 
 
 def test_gon_validation_step_returns_elbo_metrics_without_changing_mode():
@@ -79,3 +80,10 @@ def test_epoch_probe_can_monitor_reconstruction(tmp_path):
 
     assert result.monitored_metric == "elbo_opt_reconstruction"
     assert result.best_validation_reconstruction > 0.0
+
+
+def test_shutdown_loader_workers_is_safe_without_persistent_iterator():
+    class _Loader:
+        _iterator = None
+
+    _shutdown_loader_workers(_Loader())

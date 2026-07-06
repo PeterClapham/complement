@@ -5,6 +5,7 @@ import torch
 from evaluation import evaluate_checkpoint_sweep, evaluate_model_grid
 from metrics import posterior_collapse_summary, representation_entropy, representation_perplexity
 from models import VariationalGONGenerator
+from utils import beta_grid_run_dir
 
 
 def test_representation_metrics_average_histogram_entropy_over_coordinates():
@@ -46,12 +47,13 @@ def test_evaluate_model_grid_writes_metrics_and_heatmaps(tmp_path):
     config = _evaluation_config(tmp_path)
     for beta_inf in [0.01, 1.0]:
         for beta_opt in [0.01, 1.0]:
-            model_dir = (
-                Path(tmp_path)
-                / "smoke_eval"
-                / "synthetic_binary"
-                / "seed-0"
-                / f"beta-inf-{_fmt(beta_inf)}__beta-opt-{_fmt(beta_opt)}"
+            model_dir = beta_grid_run_dir(
+                Path(tmp_path),
+                "smoke_eval",
+                "synthetic_binary",
+                0,
+                beta_inf,
+                beta_opt,
             )
             model_dir.mkdir(parents=True)
             torch.save(VariationalGONGenerator(latent_dim=8, base_channels=4).state_dict(), model_dir / "model.pt")
@@ -69,12 +71,13 @@ def test_evaluate_checkpoint_sweep_writes_one_directory_per_epoch(tmp_path):
     config["evaluation"]["checkpoint_epochs"] = [50, 80]
     for beta_inf in [0.01, 1.0]:
         for beta_opt in [0.01, 1.0]:
-            model_dir = (
-                Path(tmp_path)
-                / "smoke_eval"
-                / "synthetic_binary"
-                / "seed-0"
-                / f"beta-inf-{_fmt(beta_inf)}__beta-opt-{_fmt(beta_opt)}"
+            model_dir = beta_grid_run_dir(
+                Path(tmp_path),
+                "smoke_eval",
+                "synthetic_binary",
+                0,
+                beta_inf,
+                beta_opt,
             )
             model_dir.mkdir(parents=True, exist_ok=True)
             state = VariationalGONGenerator(latent_dim=8, base_channels=4).state_dict()
@@ -100,12 +103,13 @@ def _evaluation_config(tmp_path):
                 "channels": 1,
             }
         ],
-        "model": {"latent_dim": 8, "base_channels": 4, "output_channels": 1},
+        "model": {
+            "name": "variational_gon",
+            "latent_dim": 8,
+            "base_channels": 4,
+            "output_channels": 1,
+        },
         "training": {"batch_size": 4, "device": "cpu"},
         "evaluation": {"batch_size": 4, "device": "cpu", "output_dir": str(Path(tmp_path) / "evaluation")},
         "betas": {"values": [0.01, 1.0]},
     }
-
-
-def _fmt(value: float) -> str:
-    return str(value).replace(".", "p")

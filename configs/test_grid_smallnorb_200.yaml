@@ -22,7 +22,7 @@ training:
 evaluation:
   batch_size: 128
   device: cuda
-  output_dir: results/evaluation/smallnorb_seed0_200ep
+  output_dir: results/evaluations/beta_grids/smallnorb_seed0_batch128_80ep/final-200ep
   representation_entropy_bins: 30
   posterior_collapse:
     active_sigma_threshold: 0.5
