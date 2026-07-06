@@ -14,7 +14,7 @@ datasets:
     binarize: false
     validation_fraction: 0.0
 model:
-  name: variational_gon
+  name: variational_gon_groupnorm
   latent_dim: 48
   base_channels: 32
   output_channels: 1

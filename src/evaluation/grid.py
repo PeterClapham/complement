@@ -15,9 +15,10 @@ from tqdm.auto import tqdm
 
 from data import build_dataset
 from metrics import posterior_collapse_summary, representation_entropy, representation_perplexity
-from models import VariationalGONGenerator
+from models import build_model
 from training import experiment_coordinates
 from training.loss import negative_beta_elbo
+from utils import beta_grid_run_dir, evaluation_dir
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -213,29 +214,28 @@ def _evaluation_dir(config: dict[str, Any]) -> Path:
     if "output_dir" in evaluation_config:
         return Path(str(evaluation_config["output_dir"]))
     experiment_config = _mapping(config.get("experiment", {}))
-    return Path(str(experiment_config.get("results_dir", "results"))) / "evaluation"
+    return evaluation_dir(
+        Path(str(experiment_config.get("results_dir", "results"))),
+        str(experiment_config.get("name", "evaluation")),
+    )
 
 
 def _model_path(config: dict[str, Any], coordinate: Any, model_filename: str) -> Path:
     experiment_config = _mapping(config.get("experiment", {}))
     results_dir = Path(str(experiment_config.get("results_dir", "results")))
     experiment_name = str(experiment_config.get("name", "variational_gon"))
-    return (
-        results_dir
-        / experiment_name
-        / coordinate.dataset_name
-        / f"seed-{coordinate.seed}"
-        / f"beta-inf-{_format_float(coordinate.beta_inf)}__beta-opt-{_format_float(coordinate.beta_opt)}"
-        / model_filename
-    )
+    return beta_grid_run_dir(
+        results_dir,
+        experiment_name,
+        coordinate.dataset_name,
+        coordinate.seed,
+        coordinate.beta_inf,
+        coordinate.beta_opt,
+    ) / model_filename
 
 
-def _build_model(config: dict[str, Any]) -> VariationalGONGenerator:
-    return VariationalGONGenerator(
-        latent_dim=int(config.get("latent_dim", 48)),
-        base_channels=int(config.get("base_channels", 32)),
-        output_channels=int(config.get("output_channels", 1)),
-    )
+def _build_model(config: dict[str, Any]) -> torch.nn.Module:
+    return build_model(config)
 
 
 def _dataset_config(config: dict[str, Any], dataset_name: str) -> dict[str, Any]:
@@ -260,7 +260,3 @@ def _mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("expected a mapping")
     return value
-
-
-def _format_float(value: float) -> str:
-    return str(value).replace(".", "p")

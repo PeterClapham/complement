@@ -1,5 +1,6 @@
 """Model definitions."""
 
-from models.variational_gon import VariationalGONGenerator
+from models.factory import build_model
+from models.variational_gon import GroupNormVariationalGONGenerator, VariationalGONGenerator
 
-__all__ = ["VariationalGONGenerator"]
+__all__ = ["GroupNormVariationalGONGenerator", "VariationalGONGenerator", "build_model"]

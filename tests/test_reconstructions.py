@@ -1,6 +1,6 @@
 import torch
 
-from artifacts import save_reconstruction_grid
+from artifacts import save_reconstruction_grid, save_sample_grid
 from data import SyntheticBinaryImageDataset
 from models import VariationalGONGenerator
 
@@ -15,6 +15,21 @@ def test_save_reconstruction_grid_writes_image(tmp_path):
         output_path=tmp_path / "grid.png",
         latent_dim=8,
         beta_inf=1.0,
+        batch_size=4,
+        device=torch.device("cpu"),
+        nrow=2,
+    )
+
+    assert path.exists()
+    assert path.stat().st_size > 0
+
+
+def test_save_sample_grid_writes_image(tmp_path):
+    model = VariationalGONGenerator(latent_dim=8, base_channels=4)
+
+    path = save_sample_grid(
+        model=model,
+        output_path=tmp_path / "samples.png",
         batch_size=4,
         device=torch.device("cpu"),
         nrow=2,

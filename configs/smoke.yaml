@@ -9,7 +9,7 @@ datasets:
     image_size: 32
     channels: 1
 model:
-  name: variational_gon
+  name: variational_gon_groupnorm
   latent_dim: 8
   base_channels: 4
   output_channels: 1

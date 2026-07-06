@@ -12,11 +12,11 @@ from torch.nn.utils import parameters_to_vector
 from torch.utils.data import DataLoader, Sampler
 from tqdm.auto import tqdm
 
-from artifacts import save_reconstruction_grid
+from artifacts import save_reconstruction_grid, save_sample_grid
 from data import build_dataset
-from models import VariationalGONGenerator
+from models import build_model
 from training.gon import gon_training_step
-from utils import ExperimentLogger, set_seed
+from utils import ExperimentLogger, beta_grid_run_dir, set_seed
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ def run_gon_experiment(
         f"{experiment_config.get('name', 'variational_gon')}"
         f"-{dataset_name}-seed{seed}-binf{beta_inf}-bopt{beta_opt}"
     )
-    run_dir = _run_dir(
+    run_dir = beta_grid_run_dir(
         Path(str(experiment_config.get("results_dir", "results"))),
         str(experiment_config.get("name", "variational_gon")),
         dataset_name,
@@ -233,6 +233,13 @@ def run_gon_experiment(
         batch_size=batch_size,
         device=device,
     )
+    sample_grid_path = logger.run_dir / "sample_grid.png"
+    save_sample_grid(
+        model=model,
+        output_path=sample_grid_path,
+        batch_size=batch_size,
+        device=device,
+    )
     _save_checkpoint(
         checkpoint_path=checkpoint_path,
         model=model,
@@ -254,16 +261,8 @@ def run_gon_experiment(
     )
 
 
-def _build_model(config: dict[str, Any]) -> VariationalGONGenerator:
-    name = str(config.get("name", "variational_gon"))
-    if name != "variational_gon":
-        raise ValueError(f"Unknown model: {name}")
-
-    return VariationalGONGenerator(
-        latent_dim=int(config.get("latent_dim", 48)),
-        base_channels=int(config.get("base_channels", 32)),
-        output_channels=int(config.get("output_channels", 1)),
-    )
+def _build_model(config: dict[str, Any]) -> torch.nn.Module:
+    return build_model(config)
 
 
 def _dataset_config(config: dict[str, Any], dataset_name: str) -> dict[str, Any]:
@@ -327,23 +326,6 @@ def _mapping(value: Any) -> dict[str, Any]:
     return value
 
 
-def _run_dir(
-    results_dir: Path,
-    experiment_name: str,
-    dataset_name: str,
-    seed: int,
-    beta_inf: float,
-    beta_opt: float,
-) -> Path:
-    return (
-        results_dir
-        / _safe_name(experiment_name)
-        / _safe_name(dataset_name)
-        / f"seed-{seed}"
-        / f"beta-inf-{_format_float(beta_inf)}__beta-opt-{_format_float(beta_opt)}"
-    )
-
-
 def _save_checkpoint(
     checkpoint_path: Path,
     model: torch.nn.Module,
@@ -366,15 +348,6 @@ def _save_checkpoint(
     temporary_path = checkpoint_path.with_suffix(f"{checkpoint_path.suffix}.tmp")
     torch.save(checkpoint, temporary_path)
     temporary_path.replace(checkpoint_path)
-
-
-def _safe_name(value: str) -> str:
-    safe = "".join(character if character.isalnum() or character in "-_" else "-" for character in value)
-    return safe.strip("-_") or "run"
-
-
-def _format_float(value: float) -> str:
-    return str(value).replace(".", "p")
 
 
 def _artifact_epochs(training_config: dict[str, Any], epochs: int) -> set[int]:
@@ -407,6 +380,13 @@ def _save_epoch_artifacts(
         output_path=reconstruction_grid_path,
         latent_dim=latent_dim,
         beta_inf=beta_inf,
+        batch_size=batch_size,
+        device=device,
+    )
+    sample_grid_path = logger.run_dir / f"sample_grid_epoch-{epoch:04d}.png"
+    save_sample_grid(
+        model=model,
+        output_path=sample_grid_path,
         batch_size=batch_size,
         device=device,
     )

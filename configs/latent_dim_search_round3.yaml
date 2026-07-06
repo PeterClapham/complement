@@ -15,7 +15,7 @@ datasets:
     cache_tensors: true
     validation_fraction: 0.1
 model:
-  name: variational_gon_groupnorm
+  name: variational_gon
   latent_dim: 48
   base_channels: 32
   output_channels: 1
@@ -37,9 +37,8 @@ latent_dimension_search:
   dataset: mnist
   beta_inf: 1.0
   beta_opt: 1.0
-  round: 0
-  rounds: 4
+  round: 3
+  dimensions: [67, 69, 71, 73, 75, 77, 79, 81]
   low: 16
   high: 128
-  step: 16
   min_step: 1

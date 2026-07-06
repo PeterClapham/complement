@@ -2,6 +2,11 @@
 
 Minimal research scaffold for a machine learning paper.
 
+New experiments use the GroupNorm model variant, configured as
+`variational_gon_groupnorm`. The historical BatchNorm model remains available as
+`variational_gon` so older checkpoints can still be resumed and evaluated with
+their original architecture.
+
 ## Setup
 
 Create and activate a virtual environment, then install the project in editable mode:
@@ -187,3 +192,26 @@ preserving the same seeded shuffle order.
 - `src/training/`: training loops and optimization helpers.
 - `src/utils/`: reusable utilities for config, seeds, and logging.
 - `tests/`: pytest coverage for reusable code.
+
+## Results Layout
+
+Experiment outputs are grouped by purpose rather than by creation time:
+
+```text
+results/
+  experiments/
+    beta_grids/
+    latent_dim_search/
+    probes/
+    benchmarks/
+    summaries/
+  evaluations/
+  logs/
+  scratch/
+```
+
+Long-lived studies use semantic paths such as
+`results/experiments/beta_grids/<study>/<dataset>/seed-<n>/...`.
+Latent-dimension searches store round summaries beside
+`round-XX/runs/latent-YYY/seed-Z/`, with failed attempts kept separately when
+needed.

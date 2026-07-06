@@ -10,9 +10,9 @@ import torch
 
 from artifacts import save_reconstruction_grid
 from data import build_dataset
-from models import VariationalGONGenerator
+from models import build_model
 from training import experiment_coordinates
-from utils import load_config
+from utils import beta_grid_run_dir, load_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,11 +53,7 @@ def _save_coordinate_grid(config: dict[str, Any], coordinate: Any, model_path: P
     model_config = _mapping(config.get("model", {}))
     device = torch.device(str(training_config.get("device", "cpu")))
     dataset = build_dataset(coordinate.dataset_name, dataset_config, seed=coordinate.seed)
-    model = VariationalGONGenerator(
-        latent_dim=int(model_config.get("latent_dim", 48)),
-        base_channels=int(model_config.get("base_channels", 32)),
-        output_channels=int(model_config.get("output_channels", 1)),
-    ).to(device)
+    model = build_model(model_config).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     save_reconstruction_grid(
         model=model,
@@ -98,12 +94,13 @@ def _model_path(config: dict[str, Any], coordinate: Any) -> Path:
 
 def _run_dir(config: dict[str, Any], coordinate: Any) -> Path:
     experiment_config = _mapping(config.get("experiment", {}))
-    return (
-        Path(str(experiment_config.get("results_dir", "results")))
-        / _safe_name(str(experiment_config.get("name", "variational_gon")))
-        / _safe_name(coordinate.dataset_name)
-        / f"seed-{coordinate.seed}"
-        / f"beta-inf-{_format_float(coordinate.beta_inf)}__beta-opt-{_format_float(coordinate.beta_opt)}"
+    return beta_grid_run_dir(
+        Path(str(experiment_config.get("results_dir", "results"))),
+        str(experiment_config.get("name", "variational_gon")),
+        coordinate.dataset_name,
+        coordinate.seed,
+        coordinate.beta_inf,
+        coordinate.beta_opt,
     )
 
 
@@ -113,15 +110,6 @@ def _mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("expected a mapping")
     return value
-
-
-def _safe_name(value: str) -> str:
-    safe = "".join(character if character.isalnum() or character in "-_" else "-" for character in value)
-    return safe.strip("-_") or "run"
-
-
-def _format_float(value: float) -> str:
-    return str(value).replace(".", "p")
 
 
 if __name__ == "__main__":

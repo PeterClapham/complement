@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from models import VariationalGONGenerator
+from models import GroupNormVariationalGONGenerator, VariationalGONGenerator, build_model
 from training import elbo_inf_loss, elbo_opt_loss, gon_training_step, vae_loss
 from utils import DEFAULT_BETA_VALUES, ExperimentLogger, iter_beta_grid
 
@@ -33,6 +33,26 @@ def test_variational_gon_generator_sample_shape():
     samples = model.sample(batch_size=3, device="cpu")
 
     assert samples.shape == (3, 1, 32, 32)
+
+
+def test_groupnorm_variational_gon_uses_groupnorm_layers():
+    model = GroupNormVariationalGONGenerator(latent_dim=8, base_channels=8, output_channels=1)
+
+    assert any(isinstance(layer, torch.nn.GroupNorm) for layer in model.decoder)
+    assert not any(isinstance(layer, torch.nn.BatchNorm2d) for layer in model.decoder)
+
+
+def test_build_model_uses_groupnorm_by_default_and_preserves_batchnorm_variant():
+    default_model = build_model({"latent_dim": 8, "base_channels": 8})
+    groupnorm_model = build_model(
+        {"name": "variational_gon_groupnorm", "latent_dim": 8, "base_channels": 8}
+    )
+    legacy_model = build_model({"name": "variational_gon", "latent_dim": 8, "base_channels": 8})
+
+    assert isinstance(default_model, GroupNormVariationalGONGenerator)
+    assert isinstance(groupnorm_model, GroupNormVariationalGONGenerator)
+    assert isinstance(legacy_model, VariationalGONGenerator)
+    assert any(isinstance(layer, torch.nn.BatchNorm2d) for layer in legacy_model.decoder)
 
 
 def test_vae_loss_returns_total_reconstruction_and_kl_terms():

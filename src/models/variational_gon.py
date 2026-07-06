@@ -70,3 +70,41 @@ class VariationalGONGenerator(nn.Module):
         sample_device = torch.device(device) if device is not None else parameter.device
         latent = torch.randn(batch_size, self.latent_dim, 1, 1, device=sample_device)
         return self.decoder(latent)
+
+
+class GroupNormVariationalGONGenerator(VariationalGONGenerator):
+    """Variational GON generator using GroupNorm in place of BatchNorm."""
+
+    def __init__(
+        self,
+        latent_dim: int = 48,
+        base_channels: int = 32,
+        output_channels: int = 1,
+        num_groups: int = 8,
+    ) -> None:
+        super().__init__(
+            latent_dim=latent_dim,
+            base_channels=base_channels,
+            output_channels=output_channels,
+        )
+        self.num_groups = num_groups
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(latent_dim, base_channels * 4, 4, 1, 0, bias=True),
+            _group_norm(base_channels * 4, num_groups),
+            nn.ELU(),
+            nn.ConvTranspose2d(base_channels * 4, base_channels * 2, 4, 2, 1, bias=True),
+            _group_norm(base_channels * 2, num_groups),
+            nn.ELU(),
+            nn.ConvTranspose2d(base_channels * 2, base_channels, 4, 2, 1, bias=True),
+            _group_norm(base_channels, num_groups),
+            nn.ELU(),
+            nn.ConvTranspose2d(base_channels, output_channels, 4, 2, 1, bias=True),
+            nn.Sigmoid(),
+        )
+
+
+def _group_norm(channels: int, requested_groups: int) -> nn.GroupNorm:
+    groups = min(requested_groups, channels)
+    while channels % groups != 0:
+        groups -= 1
+    return nn.GroupNorm(groups, channels)

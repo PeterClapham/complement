@@ -13,10 +13,10 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from data import build_dataset
-from models import VariationalGONGenerator
+from models import build_model
 from training.experiment import EpochRandomSampler
 from training.gon import gon_training_step, gon_validation_step
-from utils import ExperimentLogger, set_seed
+from utils import ExperimentLogger, probe_dir, set_seed
 
 
 @dataclass(frozen=True)
@@ -60,11 +60,21 @@ def run_epoch_probe(
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config.get("learning_rate", 1e-3)))
 
     run_name = f"{experiment_config.get('name', 'epoch_probe')}-{dataset_name}-seed{seed}"
+    configured_run_dir = config.get("probe_run_dir")
     logger = ExperimentLogger(
         config={**config, "seed": seed, "dataset": dataset_name, "beta_inf": beta_inf, "beta_opt": beta_opt},
         seed=seed,
         results_dir=Path(str(experiment_config.get("results_dir", "results"))),
         run_name=run_name,
+        run_dir=Path(str(configured_run_dir))
+        if configured_run_dir is not None
+        else probe_dir(
+            Path(str(experiment_config.get("results_dir", "results"))),
+            str(experiment_config.get("name", "epoch_probe")),
+            dataset_name,
+            seed,
+        )
+        / _timestamp(),
     )
     summary_path = logger.run_dir / "epoch_metrics.csv"
 
@@ -100,53 +110,57 @@ def run_epoch_probe(
         persistent_workers=persistent_workers,
     )
 
-    for epoch in range(max_epochs):
-        epoch_start = time.perf_counter()
-        train_sampler.set_epoch(epoch)
-        train_metrics = _run_training_epoch(
-            model=model,
-            optimizer=optimizer,
-            loader=train_loader,
-            latent_dim=latent_dim,
-            beta_inf=beta_inf,
-            beta_opt=beta_opt,
-            epoch=epoch,
-            show_progress=show_progress,
-        )
-        validation_metrics = _run_validation_epoch(
-            model=model,
-            loader=validation_loader,
-            latent_dim=latent_dim,
-            beta_inf=beta_inf,
-            beta_opt=beta_opt,
-            epoch=epoch,
-            show_progress=show_progress,
-        )
-        row = {
-            "epoch": epoch + 1,
-            **{f"train_{key}": value for key, value in train_metrics.items()},
-            **{f"val_{key}": value for key, value in validation_metrics.items()},
-            "generalization_gap": validation_metrics["elbo_opt_loss"] - train_metrics["elbo_opt_loss"],
-            "epoch_seconds": time.perf_counter() - epoch_start,
-        }
-        epoch_rows.append(row)
-        _write_epoch_metrics(summary_path, epoch_rows)
-        logger.log_metric(step=epoch, metrics=row)
-        print(_probe_summary(row), flush=True)
+    try:
+        for epoch in range(max_epochs):
+            epoch_start = time.perf_counter()
+            train_sampler.set_epoch(epoch)
+            train_metrics = _run_training_epoch(
+                model=model,
+                optimizer=optimizer,
+                loader=train_loader,
+                latent_dim=latent_dim,
+                beta_inf=beta_inf,
+                beta_opt=beta_opt,
+                epoch=epoch,
+                show_progress=show_progress,
+            )
+            validation_metrics = _run_validation_epoch(
+                model=model,
+                loader=validation_loader,
+                latent_dim=latent_dim,
+                beta_inf=beta_inf,
+                beta_opt=beta_opt,
+                epoch=epoch,
+                show_progress=show_progress,
+            )
+            row = {
+                "epoch": epoch + 1,
+                **{f"train_{key}": value for key, value in train_metrics.items()},
+                **{f"val_{key}": value for key, value in validation_metrics.items()},
+                "generalization_gap": validation_metrics["elbo_opt_loss"] - train_metrics["elbo_opt_loss"],
+                "epoch_seconds": time.perf_counter() - epoch_start,
+            }
+            epoch_rows.append(row)
+            _write_epoch_metrics(summary_path, epoch_rows)
+            logger.log_metric(step=epoch, metrics=row)
+            print(_probe_summary(row), flush=True)
 
-        current_monitored_value = validation_metrics[monitored_metric]
-        if current_monitored_value < best_monitored_value - min_delta:
-            best_monitored_value = current_monitored_value
-            best_validation_elbo = validation_metrics["elbo_opt_loss"]
-            best_validation_reconstruction = validation_metrics["elbo_opt_reconstruction"]
-            best_epoch = epoch + 1
-            stale_epochs = 0
-        else:
-            stale_epochs += 1
+            current_monitored_value = validation_metrics[monitored_metric]
+            if current_monitored_value < best_monitored_value - min_delta:
+                best_monitored_value = current_monitored_value
+                best_validation_elbo = validation_metrics["elbo_opt_loss"]
+                best_validation_reconstruction = validation_metrics["elbo_opt_reconstruction"]
+                best_epoch = epoch + 1
+                stale_epochs = 0
+            else:
+                stale_epochs += 1
 
-        if stale_epochs >= patience:
-            stopped_early = True
-            break
+            if stale_epochs >= patience:
+                stopped_early = True
+                break
+    finally:
+        _shutdown_loader_workers(train_loader)
+        _shutdown_loader_workers(validation_loader)
 
     return EpochProbeResult(
         run_dir=logger.run_dir,
@@ -218,6 +232,12 @@ def _mean_metrics(metrics: list[dict[str, float]]) -> dict[str, float]:
     return {key: sum(item[key] for item in metrics) / len(metrics) for key in keys}
 
 
+def _shutdown_loader_workers(loader: DataLoader) -> None:
+    iterator = getattr(loader, "_iterator", None)
+    if iterator is not None:
+        iterator._shutdown_workers()
+
+
 def _write_epoch_metrics(path: Path, rows: list[dict[str, float | int]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
@@ -241,12 +261,8 @@ def _images(batch: Any) -> torch.Tensor:
     return batch[0] if isinstance(batch, list | tuple) else batch
 
 
-def _build_model(config: dict[str, Any]) -> VariationalGONGenerator:
-    return VariationalGONGenerator(
-        latent_dim=int(config.get("latent_dim", 48)),
-        base_channels=int(config.get("base_channels", 32)),
-        output_channels=int(config.get("output_channels", 1)),
-    )
+def _build_model(config: dict[str, Any]) -> torch.nn.Module:
+    return build_model(config)
 
 
 def _dataset_config(config: dict[str, Any], dataset_name: str, split: str) -> dict[str, Any]:
@@ -263,3 +279,9 @@ def _mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("expected a mapping")
     return value
+
+
+def _timestamp() -> str:
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")
